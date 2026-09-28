@@ -11,24 +11,53 @@ No proxies, no reflection, no magic: just small modules you can read in one sitt
 - **Composable validation.** Server-side payload checks built from small `Guard` validators.
 - **Middlewares.** Rate limits, permissions or round-state checks run before your handler.
 - **Services with a shared side.** Each service exposes its utilities and events from a single shared module.
+- **Utilities.** A folder of small, standalone modules (signals, and more to come) usable from any environment.
 
 ## Project layout
 
-`Network` lives in `ReplicatedStorage`. Each service exists in up to three environments, all named after the service:
+The layout is defined in `default.project.json` and mapped with [Rojo](https://rojo.space).
+
+### In the repository
+
+```
+src
+├── Core
+│   ├── Boot
+│   │   ├── Shared
+│   │   ├── Server
+│   │   └── Client
+│   ├── Network
+│   └── Utilities
+└── Services
+    ├── Shared
+    ├── Server
+    └── Client
+```
+
+### In Roblox
 
 ```
 ReplicatedStorage
-├── Network            -- Network + Guard
+├── Boot                  -- shared bootstrap code       (src/Core/Boot/Shared)
+├── Network               -- Network + Guard             (src/Core/Network)
+├── Utilities             -- standalone helper modules   (src/Core/Utilities)
 └── Shared
     └── Services
         └── TestService   -- utilities + events, used by both sides
-Server
+
+ServerScriptService
+├── Server                -- server entry point          (src/Core/Boot/Server)
 └── Services
     └── TestService       -- server logic
-Client
-└── Services
-    └── TestService       -- client logic
+
+StarterPlayer
+└── StarterPlayerScripts
+    ├── Client            -- client entry point          (src/Core/Boot/Client)
+    └── Services
+        └── TestService   -- client logic
 ```
+
+Each service exists in up to three environments, all named after the service. A service only needs the sides it actually uses.
 
 ## Quick look: TestService
 
@@ -107,6 +136,29 @@ end
 return TestService
 ```
 
+## Networking
+
+### Defining events
+
+`Network.Define(name, guards, options)` creates an event. One guard per argument, in order. Names are unique, so namespacing them as `"Service/Event"` keeps things tidy.
+
+```luau
+-- Several arguments, an optional one, and an unreliable event for high-frequency data
+local Moved: Network.Event<Vector3, number?> = Network.Define("Movement/Moved", {
+	Guard.Vector3,
+	Guard.Optional(Guard.Range(0, 1)),
+}, {
+	unreliable = true,
+})
+```
+
+### Firing events
+
+| Direction | Send | Receive |
+| --- | --- | --- |
+| Client → Server | `FireServer(...)` | `OnServerEvent(function(player, ...) end)` |
+| Server → Client | `FireClient(player, ...)` | `OnClientEvent(function(...) end)` |
+
 ## Validation
 
 Everything coming from the client is untrusted, so validation happens on the server before your handler runs. In Studio, `FireServer` also validates before sending, so mistakes surface on the side that caused them.
@@ -136,6 +188,23 @@ local isPositive: Guard.Check = function(v)
 end
 ```
 
+Guards compose, so complex payloads stay readable:
+
+```luau
+local Purchase: Network.Event<{ ItemId: string, Amount: number }> = Network.Define("Shop/Purchase", {
+	Guard.Object({
+		ItemId = Guard.StringMax(32),
+		Amount = Guard.Integer(1, 99),
+	}),
+})
+
+-- An array of up to 10 instances of a class
+local Targets = Guard.Array(Guard.Instance("BasePart"), 10)
+
+-- Same value passing through several checks
+local Percent = Guard.All(Guard.Number, Guard.Range(0, 100))
+```
+
 ## Middlewares
 
 Middlewares run before validation and can stop an event early. They have the same signature everywhere, so cooldowns, role checks or round-state checks plug in without touching the core:
@@ -144,8 +213,88 @@ Middlewares run before validation and can stop an event early. They have the sam
 local Middleware = (player: Player, ...unknown) -> boolean
 ```
 
+Return `true` to let the event continue, `false` to drop it.
+
+```luau
+-- Only players inside a round can send this event
+local function inRound(player: Player): boolean
+	return player:GetAttribute("InRound") == true
+end
+
+-- Only admins
+local ADMINS = { [1] = true }
+local function isAdmin(player: Player): boolean
+	return ADMINS[player.UserId] == true
+end
+
+local Kick: Network.Event<Player> = Network.Define("Admin/Kick", {
+	Guard.Instance("Player"),
+}, {
+	middlewares = { isAdmin, Network.RateLimit(2) },
+})
+```
+
+Middlewares run in order and the first one that returns `false` stops the chain, so put cheap checks first.
+
+## Utilities
+
+`ReplicatedStorage.Utilities` holds small, standalone modules. They don't depend on the networking layer or on services, so they work on both server and client, and you can use them in any project.
+
+```luau
+local Utilities = ReplicatedStorage.Utilities
+local Signal = require(Utilities.Signal)
+```
+
+### Signal
+
+A typed signal with `Connect`, `Once`, `Wait`, interceptors (filters that can cancel an event before listeners run) and `Destroy`.
+
+```luau
+local Signal = require(ReplicatedStorage.Utilities.Signal)
+
+local Damaged: Signal.Signal<number, string> = Signal.new()
+
+-- Connect returns a Connection
+local connection = Damaged:Connect(function(amount, source)
+	print(`took {amount} from {source}`)
+end)
+
+-- Fire once, then stop listening
+Damaged:Once(function(amount)
+	print("first hit:", amount)
+end)
+
+-- Yield until the next fire
+local amount, source = Damaged:Wait()
+
+-- Interceptors: return true to let the event through, false to cancel it
+Damaged:AddInterceptor(function(amount)
+	return amount > 0
+end)
+
+Damaged:Fire(25, "Zombie")
+
+connection:Disconnect()
+Damaged:Destroy()
+```
+
+### Planned utilities
+
+The same rules apply to everything that joins `Utilities`: strict types, no magic, small enough to read in one sitting.
+
+| Utility | Purpose |
+| --- | --- |
+| `Cleaner` | Track connections, instances, threads and functions, and clean them all up at once |
+| `Promise` | Typed promises for async flows, chaining and error handling |
+| `Timer` | Cooldowns, intervals and delays with clean cancellation |
+| `Pool` | Object and thread pooling for hot paths |
+| `State` | Small observable values with change signals |
+
+Nothing here is final. If a utility isn't needed by a real project, it doesn't get written.
+
 ## Design notes
 
 - **Simplicity over features.** The whole networking layer is two small modules.
 - **Types are declared, not inferred.** Luau can't derive `Event<number, string>` from a list of guards, so the annotation is written by hand next to the `Define` call.
 - **No serialization.** Payloads travel the way Roblox sends them by default. For most games that's fine; for very high-frequency events with many players, a buffer-based approach would use less bandwidth.
+- **Utilities stay independent.** Each utility is a single module with no dependencies on the rest of the framework, so it can be copied elsewhere as is.
