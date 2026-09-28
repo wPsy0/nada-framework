@@ -15,6 +15,9 @@
       },
       "Network": {
         "$path": "src/Core/Network"
+      },
+      "Utilities": {
+        "$path": "src/Core/Utilities"
       }
     },
 
