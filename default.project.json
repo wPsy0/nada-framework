@@ -1,0 +1,39 @@
+{
+  "name": "serious-rpg",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/Services/Shared"
+      },
+      "Boot": {
+        "$path": "src/Boot/Shared"
+      },
+      "Events": {
+        "$path": "src/Events"
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/Boot/Server"
+      },
+      "Services": {
+        "$path": "src/Services/Server"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$className":"StarterPlayerScripts",
+        "Client": {
+          "$path": "src/Boot/Client"
+        },
+        "Services": {
+          "$path": "src/Services/Client"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+require(game:GetService("ReplicatedStorage").Boot).BootChildren(script.Parent.Services, "Init", "Start")

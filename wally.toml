@@ -1,0 +1,17 @@
+[package]
+name = "wpsy0/nada-framework"
+description = "NADA (Not Another Dumb Architecture) is a simple roblox framework"
+license = "MIT"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+exclude = [
+    "sourcemap.json", 
+    "default.project.json", 
+    ".gitignore", 
+    "rokit.toml",
+    ".vscode",
+    "*.lock"
+]
+
+[dependencies]
