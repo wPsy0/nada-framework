@@ -1,8 +1,23 @@
 --!strict
-local TestServiceShared = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-function TestServiceShared.Salute(from: string, to: string): ()
-    print(`{from} -> {to}`)
+local Network = require(ReplicatedStorage.Network)
+local Guard = require(ReplicatedStorage.Network.Guard)
+
+local TestEvent: Network.Event<string, number> = Network.Define("Test/Event", {
+	Guard.StringMax(24),
+	Guard.Integer(0, 99),
+}, {
+	middlewares = { Network.RateLimit(12) },
+})
+
+local function salute(from: string, to: string): ()
+	print(`{from} -> {to}`)
 end
 
-return TestServiceShared
+return {
+	Salute = salute,
+	Events = {
+		TestEvent = TestEvent,
+	},
+}

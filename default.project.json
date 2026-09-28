@@ -10,8 +10,8 @@
       "Boot": {
         "$path": "src/Boot/Shared"
       },
-      "Events": {
-        "$path": "src/Events"
+      "Network": {
+        "$path": "src/Network"
       }
     },
 

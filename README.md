@@ -1,4 +1,4 @@
-# nada-framework
+# N.A.D.A Framework (Not Another Dumb Architecture)
 
 A tiny, strictly-typed framework for Roblox. Nothing you don't need.
 

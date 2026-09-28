@@ -3,7 +3,6 @@ local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local TestServiceShared = require(ReplicatedStorage.Shared.TestServiceShared)
-local Events = require(ReplicatedStorage.Events)
 
 local TestServiceClient = {}
 
@@ -15,7 +14,7 @@ function TestServiceClient.Init(self: TestServiceClient): ()
         inputObject: InputObject
     ): Enum.ContextActionResult?
         if inputState == Enum.UserInputState.Begin then
-            Events.TestEvent.FireServer("David", 17)
+            TestServiceShared.Events.TestEvent.FireServer("David", 17)
         end
         return Enum.ContextActionResult.Sink
     end, false, Enum.KeyCode.E)
