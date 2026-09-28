@@ -5,19 +5,22 @@
 
     "ReplicatedStorage": {
       "Shared": {
-        "$path": "src/Services/Shared"
+        "$className": "Folder",
+        "Services": {
+          "$path": "src/Services/Shared"
+        }
       },
       "Boot": {
-        "$path": "src/Boot/Shared"
+        "$path": "src/Core/Boot/Shared"
       },
       "Network": {
-        "$path": "src/Network"
+        "$path": "src/Core/Network"
       }
     },
 
     "ServerScriptService": {
       "Server": {
-        "$path": "src/Boot/Server"
+        "$path": "src/Core/Boot/Server"
       },
       "Services": {
         "$path": "src/Services/Server"
@@ -28,7 +31,7 @@
       "StarterPlayerScripts": {
         "$className":"StarterPlayerScripts",
         "Client": {
-          "$path": "src/Boot/Client"
+          "$path": "src/Core/Boot/Client"
         },
         "Services": {
           "$path": "src/Services/Client"

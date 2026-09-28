@@ -10,47 +10,101 @@ No proxies, no reflection, no magic: just small modules you can read in one sitt
 - **Typed networking.** Define an event once, share the same payload types on client and server.
 - **Composable validation.** Server-side payload checks built from small `Guard` validators.
 - **Middlewares.** Rate limits, permissions or round-state checks run before your handler.
-- **One place per feature.** Each feature declares its events in a single shared module.
+- **Services with a shared side.** Each service exposes its utilities and events from a single shared module.
 
-## Quick look
+## Project layout
 
-Declare events in a shared module. The type and the guards live side by side:
+`Network` lives in `ReplicatedStorage`. Each service exists in up to three environments, all named after the service:
+
+```
+ReplicatedStorage
+├── Network            -- Network + Guard
+└── Shared
+    └── Services
+        └── TestService   -- utilities + events, used by both sides
+Server
+└── Services
+    └── TestService       -- server logic
+Client
+└── Services
+    └── TestService       -- client logic
+```
+
+## Quick look: TestService
+
+### Shared
+
+The shared module exposes the service's utilities and its events. The payload type and the guards live side by side:
 
 ```luau
 --!strict
-local Network = require(Shared.Network)
-local Guard = require(Shared.Guard)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Attack: Network.Event<number, Vector3> = Network.Define("Combat/Attack", {
-	Guard.Range(0, 100),
-	Guard.Vector3,
+local Network = require(ReplicatedStorage.Network)
+local Guard = require(ReplicatedStorage.Network.Guard)
+
+local TestEvent: Network.Event<number, string> = Network.Define("Test/Event", {
+	Guard.Integer(0, 99),
+	Guard.StringMax(24),
 }, {
-	middlewares = { Network.RateLimit(10) },
-    unreliable = false
+	middlewares = { Network.RateLimit(12) },
+	unreliable = false,
 })
 
+local function salute(from: string, to: string): ()
+	print(`{from} -> {to}`)
+end
+
 return {
-	Attack = Attack,
+	Salute = salute,
+	Events = {
+		TestEvent = TestEvent,
+	},
 }
 ```
 
-Server:
+### Server
 
 ```luau
-local CombatEvents = require(Shared.Events.Combat)
+--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-CombatEvents.Attack.OnServerEvent(function(player, damage, direction)
-	-- player: Player, damage: number, direction: Vector3
-	-- payload already validated, rate limit already applied
-end)
+local TestServiceShared = require(ReplicatedStorage.Shared.Services.TestService)
+
+local TestService = {}
+
+function TestService.Start(): ()
+	TestServiceShared.Events.TestEvent.OnServerEvent(function(player, id, message)
+		-- player: Player, id: number, message: string
+		-- payload already validated, rate limit already applied
+		TestServiceShared.Salute(player.Name, message)
+		TestServiceShared.Events.TestEvent.FireClient(player, id, message)
+	end)
+end
+
+return TestService
 ```
 
-Client:
+### Client
 
 ```luau
-local CombatEvents = require(Shared.Events.Combat)
+--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-CombatEvents.Attack.FireServer(25, Vector3.new(0, 0, 1))
+local TestServiceShared = require(ReplicatedStorage.Shared.Services.TestService)
+
+local TestService = {}
+
+function TestService.Start(): ()
+	TestServiceShared.Events.TestEvent.OnClientEvent(function(id, message)
+		-- id: number, message: string
+		TestServiceShared.Salute("server", message)
+	end)
+
+	TestServiceShared.Events.TestEvent.FireServer(42, "hello")
+end
+
+return TestService
 ```
 
 ## Validation
@@ -62,7 +116,7 @@ Built-in guards:
 | Guard | Accepts |
 | --- | --- |
 | `Guard.Number` | finite numbers (rejects `NaN` and `inf`) |
-| `Guard.String`, `Guard.boolean` | the obvious |
+| `Guard.String`, `Guard.Boolean` | the obvious |
 | `Guard.Vector3` | `Vector3` with finite components |
 | `Guard.Integer(min?, max?)` | integers in range |
 | `Guard.Range(min, max)` | numbers in range |
@@ -93,5 +147,5 @@ local Middleware = (player: Player, ...unknown) -> boolean
 ## Design notes
 
 - **Simplicity over features.** The whole networking layer is two small modules.
-- **Types are declared, not inferred.** Luau can't derive `Event<number, Vector3>` from a list of guards, so the annotation is written by hand next to the `Define` call.
+- **Types are declared, not inferred.** Luau can't derive `Event<number, string>` from a list of guards, so the annotation is written by hand next to the `Define` call.
 - **No serialization.** Payloads travel the way Roblox sends them by default. For most games that's fine; for very high-frequency events with many players, a buffer-based approach would use less bandwidth.
